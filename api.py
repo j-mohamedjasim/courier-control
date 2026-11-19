@@ -31,13 +31,14 @@ def create_checkout():
             mode=plan["mode"],
             customer=customer.id,
             line_items=[{"price": plan["price_id"], "quantity": 1}],
-            success_url="https://example.com/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://example.com/cancel",
+            success_url="https://courier-control.onrender.com/success?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://courier-control.onrender.com/cancel",
         )
 
         return jsonify({"checkout_url": session.url, "session_id": session.id})
 
     except Exception as e:
+        print("STRIPE ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 @app.route("/success")
