@@ -1,6 +1,13 @@
 import os
 import stripe
 from flask import Flask, request, jsonify
+import psycopg2
+from datetime import datetime, timedelta
+
+def todayDate():
+    today = datetime.today()
+    tdate = today.strftime('%Y-%m-%d')
+    return tdate
 
 app = Flask(__name__)
 stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
@@ -11,6 +18,12 @@ PLANS = {
     "Yearly": {"price_id": "price_1UdWAh0mMuJIAd5u22zNY1oM", "mode": "subscription"},
 }
 
+def get_db():
+    return psycopg2.connect(os.getenv("CC_CONNECTION"))
+
+@app.route("/price-plan", methods=["POST"])
+def price_plan():
+    return jsonify({"One time": 20.00, "Monthly": 10.00, "Annually": 120.00})
 
 @app.route("/create-checkout", methods=["POST"])
 def create_checkout():
@@ -31,7 +44,7 @@ def create_checkout():
             mode=plan["mode"],
             customer=customer.id,
             line_items=[{"price": plan["price_id"], "quantity": 1}],
-            success_url="https://courier-control.onrender.com/success?session_id={CHECKOUT_SESSION_ID}",
+            success_url="https://courier-control.onrender.com/success?session_id={CHECKOUT_SESSION_ID}&email={email}&name={name}&plan={plan}",
             cancel_url="https://courier-control.onrender.com/cancel",
         )
 
@@ -44,8 +57,20 @@ def create_checkout():
 @app.route("/success")
 def payment_success():
     session_id = request.args.get("session_id")
+    email = request.args.get("email")
+    name = request.args.get("name")
+    plan = request.args.get("plan")
+    tdate = todayDate()
     if session_id:
         session = stripe.checkout.Session.retrieve(session_id)
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""INSERT INTO customer_plan (company, name, address1, address2, city, postcode, job_title, email, username, password, NOW(), date, session, subscription_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",("", name, "", "", "", "", "", email, "", "", tdate, session_id, plan))
+
+        conn.commit()
+        cur.close()
+        conn.close()
         if session.payment_status == "paid":
             return "Payment successful! You can close this browser tab and return to Courier Control."
     return "Payment pending or invalid.", 400

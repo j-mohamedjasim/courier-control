@@ -3,12 +3,30 @@ from tkinter import messagebox
 import webbrowser
 import requests
 
+plan_price = {"One time": 0.00,
+              "Monthly": 0.00,
+              "Annually": 0.00}
+
+def get_prices():
+    try:
+        response = requests.post(
+            "https://courier-control.onrender.com/price-plan",
+            timeout=60,
+        )
+
+        response.raise_for_status()
+        data = response.json()
+
+        plan_price["One time"] = data["One time"]
+        plan_price["Monthly"] = data["Monthly"]
+        plan_price["Annually"] = data["Annually"]
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+        return
+    
+#get_prices()
 
 def SetupAccountWindow(root, goBack):
-
-    global get_payment
-
-    get_payment = 0.00
 
     for widget in root.winfo_children():
         widget.destroy()
@@ -17,10 +35,28 @@ def SetupAccountWindow(root, goBack):
     root.geometry("700x700")
 
     def start_payment():
-        f_name = name.get()
-        f_email = email.get()
-        f_postcode = postcode.get()
-        selected_plan = subscriptionType.get()
+        f_name = name.get().strip().title()
+        f_email = email.get().strip()
+        f_postcode = postcode.get().strip().upper()
+        selected_plan = subscriptionType.get().strip()
+
+        if f_name == '' or f_email == '' or f_postcode == '':
+            if f_name == '':
+                messagebox.showerror('Error', "Please fill your name before select plan and pay for it.")
+                name.focus_set()
+                return
+            elif f_email == '':
+                messagebox.showerror('Error', 'Please fill your vaild email before select plan and pay for it.')
+                email.focus_set()
+                return
+            elif f_postcode == '':
+                messagebox.showerror('Error', 'Please fill your postcode before select plan and pay for it.')
+                postcode.focus_set()
+                return
+        proceed_to_payment.configure(state='disabled')
+        lable_assurance.grid()
+        yesButton.grid()
+        noButton.grid()
 
         if selected_plan == 'One Time':
             plan = "One Time"
@@ -29,37 +65,36 @@ def SetupAccountWindow(root, goBack):
         else:
             plan = "Yearly"
         response = requests.post(
-            "https://courierControl.onrender.com/create-checkout",
+            "https://courier-control.onrender.com/create-checkout",
             json={
                 "name": f_name,
                 "email": f_email,
                 "postcode": f_postcode,
                 "selected_plan": plan,
             },
-            timeout=40,
+            timeout=60,
         )
+
         data = response.json()
-        webbrowser.open(data["checkout_url"])
+        if response.ok and "checkout_url" in data:
+            session_id = data["session_id"]
+            webbrowser.open(data["checkout_url"])
 
     def show_amount(choice):
-        global get_payment
         pay = subscriptionType.get()
 
         if pay == 'One Time':
             payment.grid()
-            payment.configure(text='£20.00', font=("Helvatica", 20, 'bold'), text_color='green')
+            payment.configure(text=f"£{plan_price['One time']:.2f}", font=("Helvatica", 20, "bold"), text_color="green")
             proceed_to_payment.grid()
-            get_payment = 20.00
         elif pay =='Monthly':
             payment.grid()
             proceed_to_payment.grid()
-            payment.configure(text='£10.00 Monthly', font=("Helvatica", 20, 'bold'), text_color='green')
-            get_payment = 10.00
+            payment.configure(text=f"{plan_price['Monthly']:.2f} Month", font=("Helvatica", 20, "bold"), text_color="green")
         elif pay == 'Yearly':
             payment.grid()
-            payment.configure(text='£120.00 Annualy', font=("Helvatica", 20, 'bold'), text_color='green')
+            payment.configure(text=f"{plan_price['Annually']:.2f} Annually", font=("Helvatica", 20, "bold"), text_color="green")
             proceed_to_payment.grid()
-            get_payment = 120.00
         else:
             payment.grid_remove()
 
@@ -67,18 +102,18 @@ def SetupAccountWindow(root, goBack):
     def accountType_def(event=None):
         accType = accountType.get()
 
-        global get_payment
-
         if accType == 'Basic':
             messagebox.showinfo("Information", 'This is basic account and it is free with limited access.', icon='info')
             subscriptionType.grid_remove()
+            lable_assurance.grid_remove()
+            yesButton.grid_remove()
+            noButton.grid_remove()
         elif accType == 'Paid':
             response = messagebox.askyesno("Information", "This paid account and you will have access to everything and choose your options", icon='info')
             if response:
                 subscriptionType.grid()
                 subscriptionType.set("One Time")
-                payment.configure(text='£7.00', font=("Helvatica", 20, 'bold'), text_color='green')
-                get_payment = 7.00
+                payment.configure(text=plan_price['One time'], font=("Helvatica", 20, 'bold'), text_color='green')
             else:
                 subscriptionType.grid_remove()
 
@@ -122,6 +157,7 @@ def SetupAccountWindow(root, goBack):
 
     accountInfo = ct.CTkScrollableFrame(root, width=320, height=320, label_text="Account Info")
     accountInfo.grid(row=7, column=0, padx=(10,0), pady=(10,0), columnspan=2)
+    accountInfo._scrollbar.grid_forget()
 
     accountType = ct.CTkComboBox(accountInfo, values=['Basic', 'Paid'], state='readonly', command=accountType_def)
     accountType.grid(row=0, column=0, padx=(10,0), pady=(10,0), sticky='w')
@@ -140,5 +176,17 @@ def SetupAccountWindow(root, goBack):
     proceed_to_payment.grid(row=3, column=0, padx=(10,0), pady=(10,0), sticky='w')
     proceed_to_payment.grid_remove()
 
+    lable_assurance = ct.CTkLabel(accountInfo, text="Click 'Yes' below after paid", font=("Helvatica", 18, "italic"), text_color="brown")
+    lable_assurance.grid(row=4, column=0, padx=(10,0), pady=(10,0), columnspan=2)
+    lable_assurance.grid_remove()
+
+    yesButton = ct.CTkButton(accountInfo, text="Yes", fg_color="green")
+    yesButton.grid(row=5, column=0, padx=(10,0), pady=(10,0), sticky='w')
+    yesButton.grid_remove()
+
+    noButton = ct.CTkButton(accountInfo, text="No", fg_color="red")
+    noButton.grid(row=5, column=1, padx=(10,0), pady=(10,0), sticky='w')
+    noButton.grid_remove()
+
     submitButton = ct.CTkButton(root, text="Create Account")
-    submitButton.grid(row=7, column=1, padx=(10,0), pady=(10,0), sticky='e')
+    submitButton.grid(row=8, column=1, padx=(10,0), pady=(10,0), sticky='e')
