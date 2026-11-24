@@ -168,6 +168,105 @@ def SetupAccountWindow(root, goBack):
             else:
                 subscriptionType.grid_remove()
 
+    def createAccount():
+        companyName = company.get().strip().title()
+        fullName = name.get().strip().title()
+        address_1 = address1.get().strip().title()
+        address_2 = address2.get().strip().title()
+        cityName = city.get().strip().title()
+        fullPostcode = postcode.get().strip().title()
+        fullEmail = email.get().strip().lower()
+        user = username.get().strip().lower()
+        password1 = password.get().strip()
+        password2 = reEnter.get().strip()
+        userJob = userJobTitle.get().strip()
+
+        if password1 != password2:
+            messagebox.showerror("Error", "The passwords are mismatching. Please enter the same password.")
+            return        
+
+        if companyName == '' or fullName == '' or address_1 == '' or cityName == '' or fullPostcode == '' or fullEmail == '' or user == '' or password1 == '' or password2 == '' or userJob == '':
+            if companyName == '':
+                messagebox.showerror("Error", "Please fill company name.")
+                company.focus_set()
+                return
+            elif fullName == '':
+                messagebox.showerror("Error", "Please fill full name.")
+                name.focus_set()
+                return
+            elif address_1 == '':
+                messagebox.showerror("Error", "Please fill address field")
+                address1.focus_set()
+                return
+            elif cityName == '':
+                messagebox.showerror("Error", "Please fill city.")
+                city.focus_set()
+                return
+            elif fullPostcode == '':
+                messagebox.showerror("Error", "Please fill postcode.")
+                postcode.focus_set()
+                return
+            elif user == '':
+                messagebox.showerror("Error", "Please fill username.")
+                username.focus_set()
+                return
+            elif password1 == '':
+                messagebox.showerror("Error", "Please type password.")
+                password.focus_set()
+                return
+            elif password2 == '':
+                messagebox.showerror("Error", "Please repeat the password again.")
+                reEnter.focus_set()
+                return
+            elif userJob == '':
+                messagebox.showerror("Error", "Please select the user job title.")
+                userJobTitle.focus_set()
+                return
+
+        submitButton.configure(state='disabled')
+
+        response = requests.post(
+            "https://courier-control.onrender.com/check-unique",
+            json={
+                "email": fullEmail,
+                "username": user,
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("unique") is True or data.get("success") is True:
+            pass
+        else:
+            messagebox.showerror("Error", "Please select unique email or username as one of them already exist.")
+            submitButton.configure(state='normal')
+            return
+        response1 = requests.post(
+            "https://courier-control.onrender.com/create-account",
+            json={
+                "company": companyName,
+                "name": fullName,
+                "address1": address_1,
+                "address2": address_2,
+                "city": cityName,
+                "postcode": fullPostcode,
+                "username": user,
+                "password": password1,
+                "userJob": userJob,
+            },
+            timeout=60,
+        )
+        response1.raise_for_status()
+        data1 = response1.json()
+
+        if data1 == 'success':
+            goBack()
+        else:
+            messagebox.showerror("Error", "Account is not created. Please try again.")
+            submitButton.configure(state='normal')
+            return
+
     backButton = ct.CTkLabel(root, text='< Back', cursor='hand2')
     backButton.grid(row=0, column=0, padx=(10,0), pady=(5,0), sticky='w')
     backButton.bind("<Button-1>", lambda event: goBack())

@@ -124,6 +124,26 @@ def checkIfPaid():
                 print("STRIPE CHECK ERROR", str(e))
                 return jsonify({"error": str(e)}), 500
 
+@app.route("/check-unique", methods=["POST"])
+def check_unique():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "No Data Received From User"}), 400
+
+    email = (data.get("email") or "").strip()
+    username = (data.get("username") or "").strip()
+
+    con = get_db()
+    c=con.cursor()
+    c.execute("SELECT FROM customer_plan WHERE email = %s AND username = %s LIMIT 1",(email or None, username or None),)
+    row = c.fetchone()
+
+    c.close()
+    con.close()
+
+    if row:
+        return jsonify({"unique": False, "error": "Email or username already exists"}), 200
+    return jsonify({"unique": True, "success": True}), 200
 
 @app.route("/cancel")
 def payment_cancel():
