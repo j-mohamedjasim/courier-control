@@ -7,6 +7,9 @@ plan_price = {"One time": 0.00,
               "Monthly": 0.00,
               "Annually": 0.00}
 
+payment_success = False
+session_id = ''
+
 def get_prices():
     try:
         response = requests.post(
@@ -26,6 +29,47 @@ def get_prices():
     
 #get_prices()
 
+def checkIfPaid():
+    global payment_success
+    try:
+        response = requests.post(
+            "https://courier-control.onrender.com/check-paid",
+            json={
+                "session_id": session_id,
+                "email": email,
+                "username": username,
+            },
+            timeout=60,
+        )
+        if response.status_code == 404:
+            payment_success = False
+            messagebox.showerror(
+                "Error",
+                "Payment did not go through or it was cancelled. Please double check and contact us if needed.",
+            )
+            return
+
+        response.raise_for_status()
+        data = response.json()
+
+        is_paid = bool(data.get("success")) and bool(data.get("active", True))
+
+        if is_paid:
+            payment_success = True
+            messagebox.showinfo(
+                "Success",
+                "You have paid! Please proceed to create account.",
+            )
+        else:
+            payment_success = False
+            messagebox.showerror(
+                "Error",
+                "Payment did not go through or it was cancelled. Please double check and contact us if needed.",
+            )
+    except Exception as e:
+        payment_success = False
+        messagebox.showerror("Error", str(e))
+
 def SetupAccountWindow(root, goBack):
 
     for widget in root.winfo_children():
@@ -33,6 +77,12 @@ def SetupAccountWindow(root, goBack):
 
     root.title("Create Account")
     root.geometry("700x700")
+
+    def noToPayAgain():
+        proceed_to_payment.configure(state='normal')
+        lable_assurance.grid_remove()
+        yesButton.grid_remove()
+        noButton.grid_remove()
 
     def start_payment():
         f_name = name.get().strip().title()
@@ -77,6 +127,7 @@ def SetupAccountWindow(root, goBack):
 
         data = response.json()
         if response.ok and "checkout_url" in data:
+            global session_id
             session_id = data["session_id"]
             webbrowser.open(data["checkout_url"])
 
@@ -139,6 +190,8 @@ def SetupAccountWindow(root, goBack):
     postcode = ct.CTkEntry(root, placeholder_text="Postcode", width=300)
     postcode.grid(row=6, column=0, padx=(10,0), pady=(10,0), sticky='w')
 
+    global email, username
+
     email = ct.CTkEntry(root, placeholder_text="email@email.com", width=300)
     email.grid(row=2, column=1, padx=(10,0), pady=(10,0), sticky='w')
 
@@ -180,11 +233,11 @@ def SetupAccountWindow(root, goBack):
     lable_assurance.grid(row=4, column=0, padx=(10,0), pady=(10,0), columnspan=2)
     lable_assurance.grid_remove()
 
-    yesButton = ct.CTkButton(accountInfo, text="Yes", fg_color="green")
+    yesButton = ct.CTkButton(accountInfo, text="Yes", fg_color="green", command=checkIfPaid)
     yesButton.grid(row=5, column=0, padx=(10,0), pady=(10,0), sticky='w')
     yesButton.grid_remove()
 
-    noButton = ct.CTkButton(accountInfo, text="No", fg_color="red")
+    noButton = ct.CTkButton(accountInfo, text="No", fg_color="red", command=noToPayAgain)
     noButton.grid(row=5, column=1, padx=(10,0), pady=(10,0), sticky='w')
     noButton.grid_remove()
 

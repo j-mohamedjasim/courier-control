@@ -2,7 +2,7 @@ import os
 import stripe
 from flask import Flask, request, jsonify
 import psycopg2
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def todayDate():
     today = datetime.today()
@@ -74,6 +74,55 @@ def payment_success():
         if session.payment_status == "paid":
             return "Payment successful! You can close this browser tab and return to Courier Control."
     return "Payment pending or invalid.", 400
+
+@app.route("/check-paid", methods=["POST"])
+def checkIfPaid():
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "No Data Received From User"}), 400
+
+    username = data["username"]
+    email = data["email"]
+    session = data["session_id"]
+    con = get_db()
+    cur = con.cursor()
+
+    cur.execute("""SELECT subscription_type, date, session FROM customer_plan WHERE email = %s OR username = %s OR session = %s ORDER BY id DESC LIMIT 1""",(email, username, session))
+
+    row = cur.fetchone()
+
+    con.commit()
+    con.close()
+    cur.close()
+
+    if row:
+        subscription = row[0]
+        paid_date = row[1]
+        session = row[2]
+
+        if subscription == 'One Time':
+            if isinstance(paid_date, datetime):
+                paid_date = paid_date.date()
+            elif isinstance(paid_date, str):
+                paid_date = datetime.strptime(paid_date.strip(), "%Y-%m-%d").date()
+
+            today_utc = datetime.now(timezone.utc).date()
+            date_elapsed = (today_utc - paid_date).days
+
+            if date_elapsed <= 31:
+                return jsonify({"success": True})
+            else:
+                return jsonify({"error": False})
+        else:
+            try:
+                active = is_subscription_active(session_id = session)
+                if active:
+                    return jsonify({"success": True, "active": True})
+                return jsonify({"success": False, "active": False})
+            except Exception as e:
+                print("STRIPE CHECK ERROR", str(e))
+                return jsonify({"error": str(e)}), 500
 
 
 @app.route("/cancel")
