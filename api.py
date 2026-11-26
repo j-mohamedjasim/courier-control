@@ -21,6 +21,9 @@ PLANS = {
 def get_db():
     return psycopg2.connect(os.getenv("CC_CONNECTION"))
 
+def get_gmail():
+    return os.getenv("GMAIL")
+
 @app.route("/price-plan", methods=["POST"])
 def price_plan():
     return jsonify({"One time": 20.00, "Monthly": 10.00, "Annually": 120.00})
@@ -196,6 +199,45 @@ def create_account():
 @app.route("/cancel")
 def payment_cancel():
     return "Payment cancelled. You can close this browser tab and return to Courier Control."
+
+#forget password
+@app.route("/check-email", methods=["POST"])
+def checkIfEmailExist():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Username or email is required"}), 400
+
+    email = (data.get("email") or "").strip()
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    con = None
+    c = None
+
+    try:
+        con = get_db()
+        c = con.cursor()
+        c.execute("SELECT email FROM customer_plan WHERE LOWER(email) = %s LIMIT 1",(email,),)
+        row = c.fetchone()
+
+        if row:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({"error":"Email does not match."}), 200
+        
+    except Exception as e:
+        if con:
+            con.rollback()
+        print(str(e))
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if c:
+            c.close()
+        if con:
+            con.close()
+        
+        
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
